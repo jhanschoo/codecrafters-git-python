@@ -22,6 +22,13 @@ parser_hash_object.add_argument("-w", action="store_true", dest="write", help="A
 parser_hash_object.add_argument("path", help="Read object from <file>")
 parser_hash_object.set_defaults(func=git_cmd.hash_object)
 
+parser_ls_tree = subparsers.add_parser("ls-tree", help="Pretty-print a tree object.")
+parser_ls_tree.add_argument("-r", action="store_true", dest="recurse", help="Recurse into sub-trees.")
+parser_ls_tree.add_argument("-t", action="store_true", dest="tree_entries", help="Show tree entries even when going to recurse them.")
+parser_ls_tree.add_argument("--name-only", action="store_true", dest="name_only", help="List only filenames")
+parser_ls_tree.add_argument("tree", help="A tree-ish object.")
+parser_ls_tree.set_defaults(func=git_cmd.ls_tree)
+
 def main() -> None:
     args = parser.parse_args()
     args.func(**vars(args))

@@ -160,8 +160,9 @@ class GitRepository:
 
     @classmethod
     def object_find(cls, name: str, fmt=None, follow=None) -> str:
-        """Return a reference (sha1) to a stored GitObject in the repo,
-        given an appropriate name and fmt (e.g. sha1 with fmt="blob")"""
+        """Return a name (sha1) to a stored GitObject in the repo,
+        given an appropriate name (e.g. HEAD, full hash, short name, tags, branches)
+        and fmt (e.g. "blob"). At the moment only accepts full hash and ignores all else."""
         return name
 
     def set_default_core_config(self) -> None:
