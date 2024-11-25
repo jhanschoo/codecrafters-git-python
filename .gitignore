@@ -132,6 +132,9 @@ venv.bak/
 .spyderproject
 .spyproject
 
+# current project scratch
+scratch/
+
 # Rope project settings
 .ropeproject
 

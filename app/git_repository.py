@@ -2,9 +2,11 @@ import configparser
 import os
 import sys
 import zlib
-from typing import Self, BinaryIO
+from typing import Self
 
-from git_object import GitObject, GitBlob #GitCommit, GitTree, GitTag, GitBlob
+from app.git_object import GitObject, GitBlob #GitCommit, GitTree, GitTag, GitBlob
+from app.git_object_bytes import GitObjectBytes
+
 
 class GitRepository:
     """A DDD entity representing a Git repository."""
@@ -13,7 +15,7 @@ class GitRepository:
     gitdir : str
     conf : configparser.ConfigParser
 
-    def __init__(self, path: str, force=False):
+    def __init__(self, path: str, force=False) -> None:
         """Initialize a new `GitRepository` object representing the repository at `path`.
         The repository system files are expected to reside at `join(path, ".git")`, unless
         `force=True`."""
@@ -129,8 +131,8 @@ class GitRepository:
         else:
             return None
 
-    def object_read(self, sha: str) -> GitObject | None:
-        """Read object `sha`. Return a
+    def object_retrieve(self, sha: str) -> GitObjectBytes | None:
+        """Retrieve object `sha`. Return a
         GitObject whose exact type depends on the object."""
 
         path = self.path_file("objects", sha[0:2], sha[2:])
@@ -139,69 +141,28 @@ class GitRepository:
             return None
 
         with open (path, "rb") as f:
-            # Note: `decompressobj()` is safer with respect to memory usage, but
-            # it would be harder to write correctly.
-            raw = zlib.decompress(f.read())
+            return GitObjectBytes.from_stored(f)
 
-            # Read object type
-            x = raw.find(b' ')
-            fmt = raw[0:x]
+    def object_store_at(self, serialized: GitObjectBytes, sha: str) -> None:
+        """Store object `obj` at `sha`."""
 
-            # Read and validate object size
-            y = raw.find(b'\x00', x)
-            size = int(raw[x:y].decode("ascii"))
-            if size != len(raw) - y - 1:
-                raise Exception(f"Malformed object {sha}: bad length")
-
-            # Pick constructor
-            match fmt:
-                # case b'commit':
-                #     return GitCommit(raw[y+1:])
-                # case b'tree':
-                #     return GitTree(raw[y+1:])
-                # case b'tag':
-                #     return GitTag(raw[y+1:])
-                case b'blob':
-                    return GitBlob(raw[y+1:])
-                case _:
-                    raise Exception(f"Unknown type {fmt.decode("ascii")} for object {sha}")
-
-    def object_write(self, obj: GitObject) -> None:
-        """Write object `obj`."""
-        result, sha = obj.serialize(self)
-
-        #todo: gate under repo
-        # Compute path
-        path=self.path_file("objects", sha[0:2], sha[2:], mkdir=True)
+        path = self.path_file("objects", sha[0:2], sha[2:], mkdir=True)
 
         if not os.path.exists(path):
             with open(path, 'wb') as f:
-                # Compress and write
-                f.write(zlib.compress(result))
+                serialized.to_stored(f)
 
-    def object_find(self, name: str, fmt=None, follow=None):
-        match name:
-            case "-p":
-                return "blob"
-            case _:
-                return name
+    def object_store(self, serialized: GitObjectBytes) -> None:
+        """Store object `obj`."""
+        sha = serialized.get_hash()
 
-    @staticmethod
-    def object_from_data(fd: BinaryIO, fmt: bytes) -> GitObject:
-        """deserialize the data in `fd`"""
-        data = fd.read()
+        self.object_store_at(serialized, sha)
 
-        match fmt:
-            # case b'commit':
-            #     return GitCommit(data)
-            # case b'tree':
-            #     return GitTree(data)
-            # case b'tag':
-            #     return GitTag(data)
-            case b'blob':
-                return GitBlob(data)
-            case _:
-                raise Exception(f"Unknown type {str(fmt)}!")
+    @classmethod
+    def object_find(cls, name: str, fmt=None, follow=None) -> str:
+        """Return a reference (sha1) to a stored GitObject in the repo,
+        given an appropriate name and fmt (e.g. sha1 with fmt="blob")"""
+        return name
 
     def set_default_core_config(self) -> None:
         """Set in `self.conf` k-v pairs that are expected of a just-initialized repository"""
@@ -215,13 +176,3 @@ class GitRepository:
         """Persist `self.conf` to `f`"""
         self.conf.write(f)
 
-    # the following functions primarily do processing to interface with the cli
-    def cat_file(self, name: str, fmt: str | None=None) -> None:
-        obj = self.object_read(self.object_find(name, fmt=fmt))
-        sys.stdout.buffer.write(obj.serialize_data(self))
-
-    @classmethod
-    def hash_object(cls, path: str, type: str, write: bool) -> None:
-        with open(path, "rb") as fd:
-            obj = cls.object_from_data(fd, type.encode())
-            print(sha)
